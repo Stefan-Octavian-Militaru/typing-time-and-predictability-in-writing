@@ -24,6 +24,8 @@ non-composite words |	0.845 |	0.854
 short words |	0.97 |	0.976
 long words |	0.672 |	0.7
 
+We can see that the impact of the masking of each word is correlated with the number of tokens, as we expected, but that composite words are less likely to have more tokens compared to longer words (the ones with more than 6 characters). This also suggests that our current method of only replacing the first token in each word should work about as well as a more complicated substitution, since the embeddings including the masked word are pretty similar to the ones excluding it.
+
 
 
 
