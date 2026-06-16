@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Typing Predictor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #f2f0eb;
+      --surface:   #faf9f6;
+      --border:    #dedad2;
+      --accent:    #7c6aff;
+      --accent2:   #ff6a8a;
+      --text:      #1a1a2e;
+      --text-soft: #3d3d56;
+      --muted:     #8a8a9e;
+      --success:   #1a9e6b;
+      --mono:      'DM Mono', monospace;
+      --display:   'Syne', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--display);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, #c8c4bb 1px, transparent 1px);
+      background-size: 28px 28px;
+      opacity: 0.55;
+      pointer-events: none;
+      z-index: 0;
+    }
+    body::after {
+      content: '';
+      position: fixed;
+      width: 700px; height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(124,106,255,0.07) 0%, transparent 70%);
+      top: -80px; left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 740px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 3rem 3.5rem;
+      box-shadow:
+        0 0 0 1px rgba(124,106,255,0.05),
+        0 4px 6px rgba(0,0,0,0.04),
+        0 16px 48px rgba(0,0,0,0.08);
+      animation: cardIn 0.6s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .logo-mark {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .logo-text {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .divider {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 6px rgba(26,158,107,0.5);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+
+    .prompt-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+    }
+
+    .prompt-text {
+      font-size: 1.4rem;
+      font-weight: 800;
+      line-height: 1.35;
+      color: var(--text);
+      margin-bottom: 2.5rem;
+      position: relative;
+      padding-left: 1.1rem;
+    }
+
+    .prompt-text::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0.15em; bottom: 0.1em;
+      width: 3px;
+      border-radius: 2px;
+      background: linear-gradient(to bottom, var(--accent), var(--accent2));
+    }
+
+    .timer-strip {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      height: 28px;
+    }
+
+    .timer-label {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }
+
+    #timer-display {
+      font-family: var(--mono);
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    #timer-display.active { opacity: 1; }
+
+    /*response answering zone*/
+    #answer {
+      width: 100%;
+      min-height: 140px;
+      background: #fff;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      font-family: var(--mono);
+      font-size: 0.95rem;
+      color: var(--text);
+      line-height: 1.6;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      caret-color: var(--accent);
+    }
+
+    #answer::placeholder { color: var(--muted); }
+
+    #answer:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(124,106,255,0.10);
+    }
+
+    #answer.recording {
+      border-color: var(--accent2);
+      box-shadow: 0 0 0 3px rgba(255,106,138,0.09);
+    }
+
+    .hint {
+      margin-top: 0.75rem;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--text-soft);
+      background: var(--bg);
+    }
+
+    #results {
+      display: none;
+      margin-top: 2rem;
+      border-top: 1px solid var(--border);
+      padding-top: 2rem;
+      animation: fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .results-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--success);
+      margin-bottom: 1.25rem;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+    }
+
+    .stat-name {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.4rem;
+    }
+
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 1.4rem;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .stat-value span {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-left: 2px;
+    }
+
+    .prediction-box {
+      background: linear-gradient(135deg, rgba(124,106,255,0.06), rgba(255,106,138,0.04));
+      border: 1px solid rgba(124,106,255,0.2);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: var(--text-soft);
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+
+    .prediction-box strong { color: var(--accent); }
+
+    .word-timing-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .word-timing-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .toggle-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      user-select: none;
+      cursor: pointer;
+    }
+
+    .toggle-wrap .toggle-label {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+      transition: color 0.2s;
+    }
+
+    .toggle-wrap input[type="checkbox"] { display: none; }
+
+    .toggle-track {
+      width: 34px; height: 18px;
+      background: var(--border);
+      border-radius: 9px;
+      position: relative;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .toggle-thumb {
+      position: absolute;
+      top: 3px; left: 3px;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      transition: transform 0.2s, background 0.2s;
+    }
+
+    .toggle-wrap input:checked ~ .toggle-track {
+      background: var(--accent);
+    }
+
+    .toggle-wrap input:checked ~ .toggle-track .toggle-thumb {
+      transform: translateX(16px);
+    }
+
+    .toggle-wrap input:checked + .toggle-label { color: var(--accent); }
+
+    #loading-indicator {
+      display: none;
+      margin-top: 1.5rem;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2.5px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .word-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .word-card {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 0;
+      height: 44px;
+      position: relative;
+      overflow: hidden;
+      animation: wordCardIn 0.3s cubic-bezier(0.16,1,0.3,1) both;
+    }
+
+    @keyframes wordCardIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .wc-bar {
+      width: 6px;
+      height: 100%;
+      flex-shrink: 0;
+      background: var(--border);
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px 0 0 8px;
+    }
+
+    .wc-bar-fill {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: var(--bar-color, var(--accent));
+      border-radius: 0;
+      transition: height 0.7s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    .wc-word {
+      font-family: var(--display);
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--text);
+      padding: 0 0.9rem;
+      min-width: 90px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .wc-time {
+      flex: 1;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .wc-time strong {
+      color: var(--text-soft);
+    }
+
+
+    .wc-pct {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      padding: 0 1rem 0 0.5rem;
+      min-width: 60px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .wc-pct strong {
+      color: var(--text-soft);
+    }
+
+    .heatmap-section {
+      margin-bottom: 1.5rem;
+    }
+
+    .heatmap-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.85rem;
+    }
+
+    .heatmap-sentence {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      font-family: var(--display);
+      font-size: 1.1rem;
+      font-weight: 700;
+      line-height: 1.8;
+      letter-spacing: 0.01em;
+      word-spacing: 0.15em;
+    }
+
+    .hw {
+      display: inline;
+      transition: color 0.3s;
+      position: relative;
+      cursor: default;
+    }
+
+
+    .hw::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 5px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--text);
+      color: var(--surface);
+      font-family: var(--mono);
+      font-size: 0.62rem;
+      font-weight: 400;
+      white-space: nowrap;
+      padding: 3px 7px;
+      border-radius: 4px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s;
+      z-index: 10;
+    }
+
+    .hw:hover::after { opacity: 1; }
+
+    #try-again {
+      margin-top: 0.5rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: none;
+      border: 1.5px solid var(--border);
+      color: var(--text-soft);
+      font-family: var(--display);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.55rem 1.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    #try-again:hover {
+      border-color: var(--accent);
+      background: rgba(124,106,255,0.06);
+      color: var(--text);
+    }
+
+    #error-msg {
+      display: none;
+      margin-top: 0.75rem;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--accent2);
+    }
+  </style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="card">
+
+    <div class="header">
+      <div class="logo-mark">⌨</div>
+      <span class="logo-text">Typing Predictor</span>
+      <div class="divider"></div>
+      <div class="status-dot" title="Ready"></div>
+    </div>
+
+    <div class="prompt-label">Your prompt</div>
+    <p class="prompt-text" id="prompt-text">{{ prompt }}</p>
+
+    <div class="timer-strip">
+      <span class="timer-label">elapsed</span>
+      <span id="timer-display">0.000s</span>
+    </div>
+
+    <textarea
+      id="answer"
+      placeholder="Start typing your answer here…"
+      autocomplete="off"
+      autocorrect="off"
+      spellcheck="false"
+    ></textarea>
+
+    <p class="hint">
+      Press <kbd class="kbd">Enter</kbd> to submit &nbsp;·&nbsp;
+      <kbd class="kbd">Shift</kbd> + <kbd class="kbd">Enter</kbd> for a new line
+    </p>
+
+    <p id="error-msg"></p>
+
+    <div id="loading-indicator">
+      <div class="spinner"></div>
+      <span class="loading-text">Computing predictions…</span>
+    </div>
+
+    <div id="results">
+      <div class="results-label">✦ Session captured</div>
+
+      <!-- summary stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-name">Total time</div>
+          <div class="stat-value" id="r-time">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-name">Words typed</div>
+          <div class="stat-value" id="r-words">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-name">Observed WPM</div>
+          <div class="stat-value" id="r-wpm">—</div>
+        </div>
+        <div class="stat-card" id="r-pred-card" style="display:none">
+          <div class="stat-name">Predicted time</div>
+          <div class="stat-value" id="r-pred">—</div>
+        </div>
+      </div>
+
+      <!-- per-word cards -->
+      <div id="word-timing-section" style="display:none">
+        <div class="word-timing-header">
+          <span class="word-timing-label">Per-word predictions</span>
+          <label class="toggle-wrap" title="Switch between predicted and adjusted time">
+            <input type="checkbox" id="time-toggle" />
+            <span class="toggle-label" id="toggle-label">Predicted</span>
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+          </label>
+        </div>
+        <div class="word-cards" id="word-cards"></div>
+      </div>
+
+      <!-- sentence heatmap -->
+      <div id="heatmap-section" class="heatmap-section" style="display:none">
+        <div class="heatmap-label">Speed heatmap</div>
+        <div class="heatmap-sentence" id="heatmap-sentence"></div>
+      </div>
+
+      <button id="try-again">↻ &nbsp;New prompt</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const textarea    = document.getElementById('answer');
+  const timerEl    = document.getElementById('timer-display');
+  const resultsEl  = document.getElementById('results');
+  const errorEl    = document.getElementById('error-msg');
+  const tryAgainBtn = document.getElementById('try-again');
+  const promptText  = document.getElementById('prompt-text').textContent.trim();
+
+  let startTime = null;
+  let rafId     = null;
+  let submitted = false;
+
+  // timer
+  function tick() {
+    const elapsed = (performance.now() - startTime) / 1000;
+    timerEl.textContent = elapsed.toFixed(3) + 's';
+    rafId = requestAnimationFrame(tick);
+  }
+  function startTimer() {
+    startTime = performance.now();
+    timerEl.classList.add('active');
+    textarea.classList.add('recording');
+    rafId = requestAnimationFrame(tick);
+  }
+  function stopTimer() {
+    cancelAnimationFrame(rafId);
+    return performance.now() - startTime;
+  }
+
+  
+
+  let completedWords      = [];
+  let currentBuf          = '';
+  let currentBacks        = 0;
+  let currentVers         = [];
+  let lastKeyWasBackspace = false;
+
+  function snapshotBeforeBackspace() {
+    if (currentBuf.length > 0 &&
+        (currentVers.length === 0 || currentVers[currentVers.length - 1] !== currentBuf)) {
+      currentVers.push(currentBuf);
+    }
+  }
+
+  function flushCurrentWord() {
+    if (currentBuf.length > 0 || currentVers.length > 0) {
+      if (currentBuf.length > 0 &&
+          (currentVers.length === 0 || currentVers[currentVers.length - 1] !== currentBuf)) {
+        currentVers.push(currentBuf);
+      }
+      completedWords.push({
+        word:          currentBuf,
+        nr_backspaces: currentBacks,
+        versions:      [...currentVers],
+      });
+    }
+    currentBuf          = '';
+    currentBacks        = 0;
+    currentVers         = [];
+    lastKeyWasBackspace = false;
+  }
+
+  textarea.addEventListener('keydown', function(e) {
+    if (submitted) return;
+
+    if (startTime === null && e.key !== 'Enter') startTimer();
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!startTime) return;
+      handleSubmit();
+      return;
+    }
+
+    if (e.key === 'Backspace') {
+      if (e.ctrlKey || e.metaKey) {
+
+        snapshotBeforeBackspace();
+        currentBacks += currentBuf.length || 1;
+        currentBuf = '';
+      } else if (currentBuf.length > 0) {
+        if (!lastKeyWasBackspace) {
+          snapshotBeforeBackspace();
+        }
+        currentBacks++;
+        currentBuf = currentBuf.slice(0, -1);
+      } else {
+        if (completedWords.length > 0) {
+          const prev = completedWords.pop();
+          currentBuf   = prev.word;
+          currentBacks = prev.nr_backspaces + 1;
+          currentVers  = [...prev.versions];
+          if (currentVers.length > 0 && currentVers[currentVers.length - 1] === currentBuf) {
+            currentVers.pop();
+          }
+        }
+      }
+      lastKeyWasBackspace = true;
+      return;
+    }
+
+    lastKeyWasBackspace = false;
+
+    if (e.key === ' ') {
+      if (currentBuf.length > 0) {
+        flushCurrentWord();
+      }
+      return;
+    }
+
+    if (e.key === 'Enter' && e.shiftKey) {
+      if (currentBuf.length > 0) flushCurrentWord();
+      return;
+    }
+
+    const ignored = ['Control','Alt','Meta','Shift','ArrowLeft','ArrowRight',
+                     'ArrowUp','ArrowDown','Home','End','PageUp','PageDown',
+                     'Tab','Escape','CapsLock','F1','F2','F3','F4','F5','F6',
+                     'F7','F8','F9','F10','F11','F12'];
+    if (ignored.includes(e.key)) return;
+
+    if (e.ctrlKey || e.metaKey) {
+      return;
+    }
+
+    currentBuf += e.key;
+    pushVersion(currentBuf);
+  });
+
+
+  textarea.addEventListener('input', function(e) {
+    if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') {
+      const words = textarea.value.trim().split(/\s+/).filter(Boolean);
+      completedWords = words.slice(0, -1).map(w => ({
+        word: w, nr_backspaces: 0, versions: [w]
+      }));
+      currentBuf   = words[words.length - 1] || '';
+      currentBacks = 0;
+      currentVers  = currentBuf ? [currentBuf] : [];
+    }
+  });
+
+
+  async function handleSubmit() {
+    if (submitted) return;
+    submitted = true;
+
+    const elapsedMs = stopTimer();
+    const text = textarea.value.trim();
+
+    if (!text) {
+      submitted = false;
+      errorEl.style.display = 'block';
+      errorEl.textContent = 'Please type something before submitting.';
+      return;
+    }
+
+
+    flushCurrentWord();
+
+    const wordData = completedWords.map(w => [w.word, w.nr_backspaces, w.versions]);
+
+    errorEl.style.display = 'none';
+    textarea.disabled = true;
+
+    const loadingEl = document.getElementById('loading-indicator');
+    loadingEl.style.display = 'flex';
+
+    try {
+      const res = await fetch('/submit/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt:     promptText,
+          response:   text,
+          elapsed_ms: Math.round(elapsedMs),
+          word_data:  wordData,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Server error');
+      showResults(data);
+
+    } catch (err) {
+      loadingEl.style.display = 'none';
+      errorEl.style.display = 'block';
+      errorEl.textContent = 'Submission failed: ' + err.message;
+      submitted = false;
+      textarea.disabled = false;
+    }
+  }
+
+
+  function showResults(data) {
+    document.getElementById('loading-indicator').style.display = 'none';
+    document.getElementById('r-time').innerHTML   = data.elapsed_s + '<span>s</span>';
+    document.getElementById('r-words').textContent = data.word_count;
+    document.getElementById('r-wpm').innerHTML    = data.wpm + '<span>wpm</span>';
+
+    if (data.prediction != null) {
+      const predCard = document.getElementById('r-pred-card');
+      predCard.style.display = 'block';
+      document.getElementById('r-pred').innerHTML =
+        parseFloat(data.prediction).toFixed(3) + '<span>s</span>';
+    }
+
+    const wordTimes = data.word_times;
+    if (wordTimes && wordTimes.length > 0) {
+      cachedWordTimes = wordTimes;
+      const useAdjusted = document.getElementById('time-toggle').checked;
+      renderWordCards(wordTimes, useAdjusted);
+      renderHeatmap(wordTimes, useAdjusted);
+    }
+
+    resultsEl.style.display = 'block';
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+
+  let cachedWordTimes = [];
+
+  function renderWordCards(wordTimes, useAdjusted) {
+    const section   = document.getElementById('word-timing-section');
+    const container = document.getElementById('word-cards');
+    container.innerHTML = '';
+
+    const timeIdx = useAdjusted ? 2 : 1;
+
+    const times = wordTimes.map(w => w[timeIdx]);
+    const minT  = Math.min(...times);
+    const maxT  = Math.max(...times);
+    const range = maxT - minT || 1;
+
+    wordTimes.forEach((w, i) => {
+      const [word, predTime, adjTime, pct] = w;
+      const displayTime = useAdjusted ? adjTime : predTime;
+      const pctClamped  = Math.min(100, Math.max(0, parseFloat(pct)));
+
+      const card = document.createElement('div');
+      card.className = 'word-card';
+      card.style.animationDelay = (i * 40) + 'ms';
+
+      const norm     = (displayTime - minT) / range;
+      const barColor = interpolateColor(norm);
+      card.style.setProperty('--bar-color', barColor);
+
+      card.innerHTML = `
+        <div class="wc-bar">
+          <div class="wc-bar-fill" style="height:0%"></div>
+        </div>
+        <span class="wc-word">${escapeHtml(word)}</span>
+        <span class="wc-time"><strong>${parseFloat(displayTime).toFixed(3)}</strong>s</span>
+        <span class="wc-pct"><strong>${parseFloat(pct).toFixed(1)}</strong>%</span>
+      `;
+      container.appendChild(card);
+
+   
+      const fill = card.querySelector('.wc-bar-fill');
+      requestAnimationFrame(() => {
+        setTimeout(() => { fill.style.height = pctClamped + '%'; }, i * 40 + 30);
+      });
+    });
+
+    section.style.display = 'block';
+  }
+
+
+  document.getElementById('time-toggle').addEventListener('change', function() {
+    const label = document.getElementById('toggle-label');
+    label.textContent = this.checked ? 'Adjusted' : 'Predicted';
+    if (cachedWordTimes.length > 0) {
+      renderWordCards(cachedWordTimes, this.checked);
+      renderHeatmap(cachedWordTimes, this.checked);
+    }
+  });
+
+  function renderHeatmap(wordTimes, useAdjusted) {
+    const section   = document.getElementById('heatmap-section');
+    const container = document.getElementById('heatmap-sentence');
+    container.innerHTML = '';
+
+    const timeIdx = useAdjusted ? 2 : 1;
+    const times   = wordTimes.map(w => w[timeIdx]);
+    const minT    = Math.min(...times);
+    const maxT    = Math.max(...times);
+    const range   = maxT - minT || 1;
+
+    wordTimes.forEach(([word, predTime, adjTime, pct], i) => {
+      const t    = (( useAdjusted ? adjTime : predTime ) - minT) / range;
+
+      const col  = lerpColor('#e8394a', '#3b6ff0', t);
+      const displayTime = useAdjusted ? adjTime : predTime;
+
+      const span = document.createElement('span');
+      span.className = 'hw';
+      span.style.color = col;
+      span.textContent = word;
+      span.dataset.tip = parseFloat(displayTime).toFixed(3) + 's';
+
+      container.appendChild(span);
+
+
+      if (i < wordTimes.length - 1) {
+        container.appendChild(document.createTextNode(' '));
+      }
+    });
+
+    section.style.display = 'block';
+  }
+
+
+  function interpolateColor(t) {
+
+    if (t < 0.5) {
+      const u = t * 2;
+      return lerpColor('#1a9e6b', '#7c6aff', u);
+    } else {
+      const u = (t - 0.5) * 2;
+      return lerpColor('#7c6aff', '#ff6a8a', u);
+    }
+  }
+
+  function lerpColor(a, b, t) {
+    const ah = a.replace('#','');
+    const bh = b.replace('#','');
+    const ar = parseInt(ah.slice(0,2),16), ag = parseInt(ah.slice(2,4),16), ab_ = parseInt(ah.slice(4,6),16);
+    const br = parseInt(bh.slice(0,2),16), bg = parseInt(bh.slice(2,4),16), bb_ = parseInt(bh.slice(4,6),16);
+    const r = Math.round(ar + (br-ar)*t);
+    const g = Math.round(ag + (bg-ag)*t);
+    const b_ = Math.round(ab_ + (bb_-ab_)*t);
+    return `rgb(${r},${g},${b_})`;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  tryAgainBtn.addEventListener('click', () => window.location.reload());
+</script>
+</body>
+</html>
